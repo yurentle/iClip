@@ -1,74 +1,133 @@
-import { Image, StyleSheet, Platform } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, FlatList, Button, TextInput, Text, StyleSheet } from 'react-native';
+import Clipboard from 'expo-clipboard';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import ClipboardItem from '../../components/ClipboardItem';
+import SearchBar from '../../components/SearchBar';
+import Toast from 'react-native-toast-message';
 
-import { HelloWave } from '@/components/HelloWave';
-import ParallaxScrollView from '@/components/ParallaxScrollView';
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
+const STORAGE_KEY = 'clipboardHistory';
 
-export default function HomeScreen() {
+export default function ClipboardHistoryScreen() {
+  const [clipboardData, setClipboardData] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [inputText, setInputText] = useState('');
+  const [copiedText, setCopiedText] = useState('');
+
+  const fetchClipboardData = async () => {
+    const storedData = await AsyncStorage.getItem(STORAGE_KEY);
+    if (storedData) {
+      setClipboardData(JSON.parse(storedData));
+    }
+  };
+
+  const checkClipboard = async () => {
+    const content = await Clipboard.getStringAsync();
+    if (content) {
+      const newEntry = { id: Date.now().toString(), content, favorite: false };
+      setClipboardData((prevData) => {
+        const updatedData = [newEntry, ...prevData];
+        AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedData));
+        return updatedData;
+      });
+    }
+  };
+
+  const copyToClipboard = async () => {
+    Toast.show({
+      type: 'success',
+      text1: '111',
+    });
+    await Clipboard.setStringAsync('hello world').then(() => {
+      Toast.show({
+        type: 'success',
+        text1: '222',
+      });
+    });
+    Toast.show({
+      type: 'success',
+      text1: '333',
+    });
+  };
+
+  const fetchCopiedText = async () => {
+    const text = await Clipboard.getStringAsync();
+    setCopiedText(text);
+  };
+
+  useEffect(() => {
+    fetchClipboardData();
+    const interval = setInterval(checkClipboard, 2000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleSearch = (query) => {
+    setSearchQuery(query);
+  };
+
+  const handleDelete = (id) => {
+    const updatedData = clipboardData.filter(item => item.id !== id);
+    setClipboardData(updatedData);
+    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedData));
+  };
+
+  const handleFavorite = (id) => {
+    const updatedData = clipboardData.map(item =>
+      item.id === id ? { ...item, favorite: !item.favorite } : item
+    );
+    setClipboardData(updatedData);
+    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedData));
+  };
+
+  const filteredData = clipboardData.filter(item =>
+    item.content.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const handleCopy = () => {
+    Clipboard.setString(inputText);
+    setInputText('');
+    setTimeout(() => checkClipboard(), 500);
+  };
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12'
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-        <ThemedText>
-          Tap the Explore tab to learn more about what's included in this starter app.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          When you're ready, run{' '}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+    <View style={{ flex: 1, padding: 20 }}>
+      <SearchBar onSearch={handleSearch} />
+      <TextInput
+        style={{ height: 100, borderColor: 'gray', borderWidth: 1, marginVertical: 10 }}
+        multiline
+        placeholder="Type here to copy..."
+        value={inputText}
+        onChangeText={setInputText}
+        onBlur={handleCopy}
+      />
+      <FlatList
+        data={filteredData}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item }) => (
+          <ClipboardItem
+            item={item}
+            onDelete={handleDelete}
+            onFavorite={handleFavorite}
+          />
+        )}
+      />
+      <Button title="Click here to copy to Clipboard" onPress={copyToClipboard} />
+      <Button title="View copied text" onPress={fetchCopiedText} />
+      <Text style={styles.copiedText}>{copiedText}</Text>
+      <Button title="Clear All" onPress={() => setClipboardData([])} />
+      <Toast />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
+  container: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
-    gap: 8,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
-  },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  copiedText: {
+    marginTop: 10,
+    color: 'red',
   },
 });
