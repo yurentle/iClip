@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { View, FlatList, Button, TextInput, Text, StyleSheet } from 'react-native';
+import { View, FlatList, Button, TextInput, Text, StyleSheet, Platform } from 'react-native';
 import Clipboard from 'expo-clipboard';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import ClipboardItem from '../../components/ClipboardItem';
 import SearchBar from '../../components/SearchBar';
 import Toast from 'react-native-toast-message';
+import * as Permissions from 'expo-permissions';
 
 const STORAGE_KEY = 'clipboardHistory';
 
@@ -13,6 +14,22 @@ export default function ClipboardHistoryScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [inputText, setInputText] = useState('');
   const [copiedText, setCopiedText] = useState('');
+
+  const requestClipboardPermission = async () => {
+    if (Platform.OS === 'android') {
+      const { status } = await Permissions.askAsync(Permissions.CLIPBOARD);
+      if (status !== 'granted') {
+        console.log('Clipboard permission denied');
+      }
+    }
+  };
+
+  useEffect(() => {
+    requestClipboardPermission();
+    fetchClipboardData();
+    const interval = setInterval(checkClipboard, 2000);
+    return () => clearInterval(interval);
+  }, []);
 
   const fetchClipboardData = async () => {
     const storedData = await AsyncStorage.getItem(STORAGE_KEY);
@@ -34,10 +51,6 @@ export default function ClipboardHistoryScreen() {
   };
 
   const copyToClipboard = async () => {
-    Toast.show({
-      type: 'success',
-      text1: '111',
-    });
     await Clipboard.setStringAsync('hello world').then(() => {
       Toast.show({
         type: 'success',
@@ -54,12 +67,6 @@ export default function ClipboardHistoryScreen() {
     const text = await Clipboard.getStringAsync();
     setCopiedText(text);
   };
-
-  useEffect(() => {
-    fetchClipboardData();
-    const interval = setInterval(checkClipboard, 2000);
-    return () => clearInterval(interval);
-  }, []);
 
   const handleSearch = (query) => {
     setSearchQuery(query);
